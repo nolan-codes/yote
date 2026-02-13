@@ -1,2 +1,2 @@
 all:
-	g++ -std=c++20 -O2 main.cpp -o main
+	g++ -std=c++20 -O2 yote.cpp -o yote

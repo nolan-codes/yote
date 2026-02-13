@@ -1,3 +1,3 @@
 #!/bin/sh
 clear
-make && ./main
+make && ./yote
