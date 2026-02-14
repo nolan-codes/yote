@@ -18,9 +18,9 @@ Current State of things:
 
 - [x] 5x6 Bitboard representation and basic game values
 - [x] Ability to print the board nicely to the console
-- [ ] Move generation
-- [ ] Apply/undo move functionality
-- [ ] Get the current state of the game
+- [x] Move generation
+- [x] Get the current state of the game
+- [x] Apply/undo move functionality
 - [ ] Human interaction system & CLI
 - [ ] Board state scoring function
 - [ ] Recursive evaluation bot
