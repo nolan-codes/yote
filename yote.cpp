@@ -1,12 +1,12 @@
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
-//VALUES
 using Bitboard = uint32_t;
 
-const Bitboard lEdge = 0b00'000001'000001'000001'000001'000001;
-const Bitboard rEdge = 0b00'100000'100000'100000'100000'100000;
+const Bitboard board = 0b00'111111'111111'111111'111111'111111;
 
+// GAME VALUES //////////////////////////////////////////////////
 Bitboard wPieces = 0b00'100000'000000'000000'000000'000000;
 Bitboard bPieces = 0b00'000000'100000'000000'000000'000000;
 
@@ -14,6 +14,7 @@ uint8_t wHand = 12;
 uint8_t bHand = 12;
 
 bool wTurn = true;
+/////////////////////////////////////////////////////////////////
 
 enum MoveType : uint8_t {
     PLACE = 0,
@@ -43,148 +44,92 @@ struct MoveList {
     Move operator[](int i) const { return moves[i]; }
 };
 
-//HELPFUL FUNCTIONS
+struct BoardState {
+    bool wTurn;
+    uint8_t wHand;
+    uint8_t bHand;
+    Bitboard wPieces;
+    Bitboard bPieces;
+};
 
-inline bool wOccs(int coord) {return 1 & wPieces >> coord;}
-inline bool bOccs(int coord) {return 1 & bPieces >> coord;}
-inline bool onLE(int coord) {return 1 & lEdge >> coord;}
-inline bool onRE(int coord) {return 1 & rEdge >> coord;}
-inline bool empty(int coord) {return !wOccs(coord) && !bOccs(coord);}
+constexpr void prebuildMoves(Bitboard table[30][4], int dist) {
+    for (int i=0; i<30; ++i) {
+        int x = i%6;
+        int y = i/6;
 
-inline void wSet(bool val, int coord) {wPieces ^= (-val ^ wPieces) & (1 << coord);}
-inline void bSet(bool val, int coord) {bPieces ^= (-val ^ bPieces) & (1 << coord);}
+        table[i][0] = (x+dist <  6) ? (1u << (i + 1*dist)) : 0u;
+        table[i][1] = (x-dist >= 0) ? (1u << (i - 1*dist)) : 0u;
+        table[i][2] = (y+dist <  5) ? (1u << (i + 6*dist)) : 0u;
+        table[i][3] = (y-dist >= 0) ? (1u << (i - 6*dist)) : 0u;
+    }
+}
 
-MoveList getMoves() {
+Bitboard steps[30][4];
+Bitboard jumps[30][4];
+
+inline bool wOccs(int coord) {return 1u & wPieces >> coord;}
+inline bool bOccs(int coord) {return 1u & bPieces >> coord;}
+
+inline void wSet(bool val, int coord) {wPieces ^= (-val ^ wPieces) & (1u << coord);}
+inline void bSet(bool val, int coord) {bPieces ^= (-val ^ bPieces) & (1u << coord);}
+
+MoveList getMovesWhite() {
     MoveList moves{};
 
-    for (uint8_t square = 0; square < 30; ++square) {
-        if (wOccs(square)) {
-            if (wTurn) {
-                if (!onRE(square)) {
-                    if (empty(square+1)) moves.push({STEP, square, (uint8_t)(square+1), 0});
-                    else if (bOccs(square+1) && !onRE(square+1) && empty(square+2)) {
-                        if (__builtin_popcount(bPieces) >= 2) {
-                            for (uint8_t i=0; i<30; ++i) {
-                                if (bOccs(i) && (i != square+2)) {
-                                    moves.push({JUMP, square, (uint8_t)(square+2), i});
-                                }
-                            }
-                        } else {
-                            moves.push({JUMP, square, (uint8_t)(square+2), (uint8_t)(square+1)});
-                        }
-                    }
-                }
-                if (!onLE(square)) {
-                    if (empty(square-1)) moves.push({STEP, square, (uint8_t)(square-1), 0});
-                    else if (bOccs(square-1) && !onLE(square-1) && empty(square-2)) {
-                        if (__builtin_popcount(bPieces) >= 2) {
-                            for (uint8_t i=0; i<30; ++i) {
-                                if (bOccs(i) && (i != square-2)) {
-                                    moves.push({JUMP, square, (uint8_t)(square-2), i});
-                                }
-                            }
-                        } else {
-                            moves.push({JUMP, square, (uint8_t)(square-2), (uint8_t)(square-1)});
-                        }
-                    }
-                }
-                if (square < 24) {
-                    if (empty(square+6)) moves.push({STEP, square, (uint8_t)(square+6), 0});
-                    else if (bOccs(square+6) && square+6 < 24 && empty(square+12)) {
-                        if (__builtin_popcount(bPieces) >= 2) {
-                            for (uint8_t i=0; i<30; ++i) {
-                                if (bOccs(i) && (i != square+12)) {
-                                    moves.push({JUMP, square, (uint8_t)(square+12), i}); 
-                                }
-                            }
-                        } else {
-                            moves.push({JUMP, square, (uint8_t)(square+12), (uint8_t)(square+6)});
-                        }
-                    }
-                }
-                if (square > 5) {
-                    if (empty(square-6)) moves.push({STEP, square, (uint8_t)(square-6), 0});
-                    else if (bOccs(square-6) && square-6 > 5 && empty(square-12)) {
-                        if (__builtin_popcount(bPieces) >= 2) {
-                            for (uint8_t i=0; i<30; ++i) {
-                                if (bOccs(i) && (i != square-12)) {
-                                    moves.push({JUMP, square, (uint8_t)(square-12), i}); 
-                                }
-                            }
-                        } else {
-                            moves.push({JUMP, square, (uint8_t)(square-12), (uint8_t)(square-6)});
-                        }
-                    }
-                }
-            }
-        } else if (bOccs(square)) {
-            if (!wTurn) {
-                if (!onRE(square)) {
-                    if (empty(square+1)) moves.push({STEP, square, (uint8_t)(square+1), 0});
-                    else if (wOccs(square+1) && !onRE(square+1) && empty(square+2)) {
-                        if (__builtin_popcount(wPieces) >= 2) {
-                            for (uint8_t i=0; i<30; ++i) {
-                                if (wOccs(i) && (i != square+2)) {
-                                    moves.push({JUMP, square, (uint8_t)(square+2), i}); 
-                                }
-                            }
-                        } else {
-                            moves.push({JUMP, square, (uint8_t)(square+2), (uint8_t)(square+1)});
-                        }
-                    }
-                }
-                if (!onLE(square)) {
-                    if (empty(square-1)) moves.push({STEP, square, (uint8_t)(square-1), 0});
-                    else if (wOccs(square-1) && !onLE(square-1) && empty(square-2)) {
-                        if (__builtin_popcount(wPieces) >= 2) {
-                            for (uint8_t i=0; i<30; ++i) {
-                                if (wOccs(i) && (i != square-2)) {
-                                    moves.push({JUMP, square, (uint8_t)(square-2), i}); 
-                                }
-                            }
-                        } else {
-                            moves.push({JUMP, square, (uint8_t)(square-2), (uint8_t)(square-1)});
-                        }
-                    }
-                }
-                if (square < 24) {
-                    if (empty(square+6)) moves.push({STEP, square, (uint8_t)(square+6), 0});
-                    else if (wOccs(square+6) && square+6 < 24 && empty(square+12)) {
-                        if (__builtin_popcount(wPieces) >= 2) {
-                            for (uint8_t i=0; i<30; ++i) {
-                                if (wOccs(i) && (i != square+12)) {
-                                    moves.push({JUMP, square, (uint8_t)(square+12), i}); 
-                                }
-                            }
-                        } else {
-                            moves.push({JUMP, square, (uint8_t)(square+12), (uint8_t)(square+6)});
-                        }
-                    }
-                }
-                if (square > 5) {
-                    if (empty(square-6)) moves.push({STEP, square, (uint8_t)(square-6), 0});
-                    else if (wOccs(square-6) && square-6 > 5 && empty(square-12)) {
-                        if (__builtin_popcount(wPieces) >= 2) {
-                            for (uint8_t i=0; i<30; ++i) {
-                                if (wOccs(i) && (i != square-12)) {
-                                    moves.push({JUMP, square, (uint8_t)(square-12), i}); 
-                                }
-                            }
-                        } else {
-                            moves.push({JUMP, square, (uint8_t)(square-12), (uint8_t)(square-6)});
-                        }
-                    }
-                }
-            }
-        } else {
-            if ((wTurn && wHand > 0) || (!wTurn && bHand > 0)) moves.push({PLACE, 0, square, 0});
+    Bitboard unocc = ~(bPieces | wPieces) & board;
+
+    for (uint32_t bb = wPieces; bb; bb &= bb - 1) {
+        uint8_t square = __builtin_ctz(bb);
+
+        for (int i=0; i<4; ++i) {
+            if (unocc & steps[square][i]) moves.push({STEP, square, (uint8_t)(__builtin_ctz(steps[square][i])), 0});
+            else if ((bPieces & steps[square][i]) && (unocc & jumps[square][i])) 
+                for (uint32_t cap = bPieces; cap; cap &= cap - 1) 
+                    moves.push({JUMP, square, (uint8_t)__builtin_ctz(jumps[square][i]), (uint8_t)__builtin_ctz(cap)});
+        }
+    }
+
+    if (wHand) {
+        while (unocc) {
+            moves.push({PLACE, 0, (uint8_t)__builtin_ctz(unocc), 0});
+            unocc &= (unocc - 1);
         }
     }
 
     return moves;
 }
 
-GameState getState() { //if white has 
+MoveList getMovesBlack() {
+    MoveList moves{};
+
+    Bitboard unocc = ~(bPieces | wPieces) & board;
+
+    for (uint32_t bb = bPieces; bb; bb &= bb - 1) {
+        uint8_t square = __builtin_ctz(bb);
+
+        for (int i=0; i<4; ++i) {
+            if (unocc & steps[square][i]) moves.push({STEP, square, (uint8_t)(__builtin_ctz(steps[square][i])), 0});
+            else if ((wPieces & steps[square][i]) && (unocc & jumps[square][i])) 
+                for (uint32_t cap = wPieces; cap; cap &= cap - 1) 
+                    moves.push({JUMP, square, (uint8_t)__builtin_ctz(jumps[square][i]), (uint8_t)__builtin_ctz(cap)});
+        }
+    }
+
+    if (bHand) {
+        while (unocc) {
+            moves.push({PLACE, 0, (uint8_t)__builtin_ctz(unocc), 0});
+            unocc &= (unocc - 1);
+        }
+    }
+
+    return moves;
+}
+
+MoveList getMoves() {
+    return wTurn ? getMovesWhite() : getMovesBlack();
+}
+
+GameState getState() {
     if (__builtin_popcount(wPieces) == 0 && wHand == 0) {
         return BWIN;
     } else if (__builtin_popcount(bPieces) == 0 && bHand == 0) {
@@ -232,7 +177,7 @@ void applyMove(Move move) {
     }
 }
 
-//When undoing, wTurn must be the same as when the move was applied
+// When undoing, wTurn must be the same as when the move was applied
 void undoMove(Move move) {
     switch (move.type) {
         case PLACE:
@@ -271,42 +216,121 @@ void undoMove(Move move) {
     }
 }
 
+BoardState saveBoard() {
+    return {wTurn, wHand, bHand, wPieces, bPieces};
+}
+
+void loadBoard(BoardState state) {
+    wTurn = state.wTurn;
+    wHand = state.wHand;
+    bHand = state.bHand;
+    wPieces = state.wPieces;
+    bPieces = state.bPieces;
+}
+
+uint8_t coordToIndex(char* coord) {
+    int x = coord[0] - 'A';
+    int y = coord[1] - '1';
+    return (uint8_t)(y*6+x);
+}
+
+void indexToCoord(uint8_t index, char coord[3]) {
+    int x = index % 6;
+    int y = index / 6;
+
+    coord[0] = 'A' + x;
+    coord[1] = '1' + y;
+    coord[2] = '\0'; 
+}
+
+Move stringToMove(const char* string) {
+    Move move{};
+    char startCoord[3] = {0};
+    char endCoord[3]   = {0};
+    char otherCoord[3] = {0};
+
+    if (strncmp(string, "PLACE ", 6) == 0) {
+        move.type = PLACE;
+        sscanf(string + 6, "%s", endCoord);
+    } else if (strncmp(string, "STEP ", 5) == 0) {
+        move.type = STEP;
+        sscanf(string + 5, "%s TO %s", startCoord, endCoord);
+    } else if (strncmp(string, "JUMP ", 5) == 0) {
+        move.type = JUMP;
+        sscanf(string + 5, "%s TO %s TAKE %s", startCoord, endCoord, otherCoord);
+    }
+
+    move.start = coordToIndex(startCoord);
+    move.end   = coordToIndex(endCoord);
+    move.other = coordToIndex(otherCoord);
+
+    return move;
+}
+
+void printMove(Move move) {
+    char start[3] = {0};
+    char end[3]   = {0};
+    char other[3] = {0};
+
+    switch (move.type) {
+        case PLACE:
+            indexToCoord(move.end, end);
+            printf("PLACE %s", end);
+            break;
+
+        case STEP:
+            indexToCoord(move.start, start);
+            indexToCoord(move.end, end);
+            printf("STEP %s TO %s", start, end);
+            break;
+
+        case JUMP:
+            indexToCoord(move.start, start);
+            indexToCoord(move.end, end);
+            indexToCoord(move.other, other);
+            printf("JUMP %s TO %s TAKE %s", start, end, other);
+            break;
+    }
+}
+
 void showMoves() {
     MoveList moves = getMoves();
     for (int i = 0; i < moves.count; ++i) {
         Move move = moves[i];
-
-        if (move.type != PLACE) {
-            printf("TYPE: %d ", move.type);
-            printf("SQUARE: %d", move.end);
-            printf("\n");
-        }
-    }
-}
-
-void showBoard() {
-    for (int x = 0; x < 5; ++x) {
-        for (int y = 0; y < 6; ++y) {
-            auto square = " . ";
-            if (wOccs(x*6+y)) square = " W ";
-            if (bOccs(x*6+y)) square = " B ";
-
-            printf("%s", square);
-        }
+        printMove(move);
         printf("\n");
     }
 }
 
+void showBoard() {
+    printf("\n   A  B  C  D  E  F  \n");
+    for (int y = 0; y < 5; ++y) {
+        printf("%d ", y+1);
+        for (int x = 0; x < 6; ++x) {
+            auto square = ".";
+            if (wOccs(y*6+x)) square = "W";
+            if (bOccs(y*6+x)) square = "B";
+
+            printf(" %s ", square);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
 //MAIN
 int main() {
+    prebuildMoves(steps, 1);
+    prebuildMoves(jumps, 2);
+
     showBoard();
     showMoves();
 
-    applyMove({PLACE, 0, 17, 0});
+    applyMove(stringToMove("PLACE B2"));
     showBoard();
     showMoves();
 
-    undoMove({PLACE, 0, 17, 0});
+    undoMove(stringToMove("PLACE B2"));
     showBoard();
     showMoves();
 
