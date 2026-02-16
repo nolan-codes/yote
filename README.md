@@ -23,7 +23,7 @@ Current State of things:
 - [x] Apply/undo move functionality
 - [x] Save/load board states
 - [x] Human interaction system & CLI
-- [ ] Board state scoring function
+- [x] Board state scoring function
 - [ ] Recursive evaluation bot
 - [ ] Human + bot CLI
 

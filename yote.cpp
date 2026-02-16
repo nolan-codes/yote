@@ -163,7 +163,7 @@ int countMovesBlack() {
         }
     }
 
-    if (wHand) count += __builtin_popcount(unocc);
+    if (bHand) count += __builtin_popcount(unocc);
 
     return count;
 }
@@ -261,6 +261,21 @@ void undoMove(Move move) {
 
 BoardState saveBoard() {
     return {wTurn, wHand, bHand, wPieces, bPieces};
+}
+
+int scoreBoard() {
+    int mate = 1500;
+
+    switch (getState()) {
+        case PLAYING: {
+            int wScore = __builtin_popcount(wPieces) * 100 + wHand * 50;
+            int bScore = __builtin_popcount(bPieces) * 100 + bHand * 50;
+            return wScore - bScore;
+        }
+        case WWIN: return mate;
+        case BWIN: return -mate;
+        default: return 0;
+    }
 }
 
 void loadBoard(BoardState state) {
