@@ -22,7 +22,7 @@ Current State of things:
 - [x] Get the current state of the game
 - [x] Apply/undo move functionality
 - [x] Save/load board states
-- [ ] Human interaction system & CLI
+- [x] Human interaction system & CLI
 - [ ] Board state scoring function
 - [ ] Recursive evaluation bot
 - [ ] Human + bot CLI

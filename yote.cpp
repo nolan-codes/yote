@@ -1,14 +1,15 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <ctype.h>
 
 using Bitboard = uint32_t;
 
 const Bitboard board = 0b00'111111'111111'111111'111111'111111;
 
 // GAME VALUES //////////////////////////////////////////////////
-Bitboard wPieces = 0b00'100000'000000'000000'000000'000000;
-Bitboard bPieces = 0b00'000000'100000'000000'000000'000000;
+Bitboard wPieces = 0b00'000000'000000'000000'000000'000000;
+Bitboard bPieces = 0b00'000000'000000'000000'000000'000000;
 
 uint8_t wHand = 12;
 uint8_t bHand = 12;
@@ -129,6 +130,48 @@ MoveList getMoves() {
     return wTurn ? getMovesWhite() : getMovesBlack();
 }
 
+int countMovesWhite() {
+    int count = 0;
+    
+    Bitboard unocc = ~(bPieces | wPieces) & board;
+
+    for (uint32_t bb = wPieces; bb; bb &= bb - 1) {
+        uint8_t square = __builtin_ctz(bb);
+
+        for (int i=0; i<4; ++i) {
+            if (unocc & steps[square][i]) count++;
+            else if ((bPieces & steps[square][i]) && (unocc & jumps[square][i])) count += __builtin_popcount(bPieces);
+        }
+    }
+
+    if (wHand) count += __builtin_popcount(unocc);
+
+    return count;
+}
+
+int countMovesBlack() {
+    int count = 0;
+    
+    Bitboard unocc = ~(bPieces | wPieces) & board;
+
+    for (uint32_t bb = bPieces; bb; bb &= bb - 1) {
+        uint8_t square = __builtin_ctz(bb);
+
+        for (int i=0; i<4; ++i) {
+            if (unocc & steps[square][i]) count++;
+            else if ((wPieces & steps[square][i]) && (unocc & jumps[square][i])) count += __builtin_popcount(wPieces);
+        }
+    }
+
+    if (wHand) count += __builtin_popcount(unocc);
+
+    return count;
+}
+
+int countMoves() {
+    return wTurn ? countMovesWhite() : countMovesBlack();
+}
+
 GameState getState() {
     if (__builtin_popcount(wPieces) == 0 && wHand == 0) {
         return BWIN;
@@ -245,19 +288,19 @@ void indexToCoord(uint8_t index, char coord[3]) {
 
 Move stringToMove(const char* string) {
     Move move{};
-    char startCoord[3] = {0};
-    char endCoord[3]   = {0};
-    char otherCoord[3] = {0};
+    char startCoord[3] = "A1";
+    char endCoord[3]   = "A1";
+    char otherCoord[3] = "A1";
 
     if (strncmp(string, "PLACE ", 6) == 0) {
         move.type = PLACE;
-        sscanf(string + 6, "%s", endCoord);
+        sscanf(string + 6, "%2s", endCoord);
     } else if (strncmp(string, "STEP ", 5) == 0) {
         move.type = STEP;
-        sscanf(string + 5, "%s TO %s", startCoord, endCoord);
+        sscanf(string + 5, "%2s %2s", startCoord, endCoord);
     } else if (strncmp(string, "JUMP ", 5) == 0) {
         move.type = JUMP;
-        sscanf(string + 5, "%s TO %s TAKE %s", startCoord, endCoord, otherCoord);
+        sscanf(string + 5, "%2s %2s TAKE %2s", startCoord, endCoord, otherCoord);
     }
 
     move.start = coordToIndex(startCoord);
@@ -323,16 +366,70 @@ int main() {
     prebuildMoves(steps, 1);
     prebuildMoves(jumps, 2);
 
-    showBoard();
-    showMoves();
+    while (getState() == PLAYING) {
+        printf("\033[2J\033[H");
+        printf("Turn: %s\n", wTurn ? "WHITE" : "BLACK");
+        printf("%d possible moves\n", countMoves());
 
-    applyMove(stringToMove("PLACE B2"));
-    showBoard();
-    showMoves();
+        showBoard();
 
-    undoMove(stringToMove("PLACE B2"));
+        MoveList moves = getMoves();
+        printf("Move format:\n");
+        printf("  PLACE XY\n");
+        printf("  STEP XY XY\n");
+        printf("  JUMP XY XY TAKE XY\n");
+        printf("  X is A-F, Y is 1-5.\n");
+        
+        if (moves.count == 0) break;
+
+        char input[128] = {0};
+        printf("\nEnter move (or QUIT): ");
+        if (!fgets(input, sizeof(input), stdin)) break;
+        input[strcspn(input, "\n")] = '\0';
+
+        for (int i = 0; input[i]; i++) input[i] = toupper(input[i]);
+
+        if (strcmp(input, "QUIT") == 0) break;
+
+        Move parsed = stringToMove(input);
+
+        bool found = false;
+        for (int i = 0; i < moves.count; ++i) {
+            Move m = moves[i];
+            if (m.type == parsed.type && 
+                m.start == parsed.start &&
+                m.end == parsed.end &&
+                m.other == parsed.other) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            printf("Illegal move, press enter.");
+            fgets(input, sizeof(input), stdin);
+            continue;
+        }
+
+        applyMove(parsed);
+        wTurn = !wTurn;
+    }
+
+    printf("\033[2J\033[H");
+
+    switch (getState()) {
+        case DRAW:
+            printf("It's a draw!");
+            break;
+        case WWIN:
+            printf("White wins!");
+            break;
+        case BWIN:
+            printf("Black wins!");
+            break;
+    }
+
     showBoard();
-    showMoves();
 
     return 0;
 }
