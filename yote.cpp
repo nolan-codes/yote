@@ -445,6 +445,54 @@ int main() {
     prebuildMoves(steps, 1);
     prebuildMoves(jumps, 2);
 
+    bool p1Human = true;
+    bool p2Human = true;
+    int botDepth = 5;
+    char input[128] = {0};
+
+    while (1) {
+        printf("Player 1:\n");
+        printf("  1 - Human\n");
+        printf("  2 - Bot\n");
+        printf("Enter (1 or 2): ");
+
+        if (!fgets(input, sizeof(input), stdin)) return 0;
+
+        int mode = 0;
+        if (sscanf(input, "%d", &mode) == 1 && (mode == 1 || mode == 2)) {
+            p1Human = (mode == 1);
+            break;
+        }
+    }
+
+    while (1) {
+        printf("Player 2:\n");
+        printf("  1 - Human\n");
+        printf("  2 - Bot\n");
+        printf("Enter (1 or 2): ");
+
+        if (!fgets(input, sizeof(input), stdin)) return 0;
+
+        int mode = 0;
+        if (sscanf(input, "%d", &mode) == 1 && (mode == 1 || mode == 2)) {
+            p2Human = (mode == 1);
+            break;
+        }
+    }
+
+    if (!p1Human || !p2Human) {
+        while (1) {
+            printf("Enter bot evaluation depth: ");
+            if (!fgets(input, sizeof(input), stdin)) return 0;
+
+            int depth = 0;
+            if (sscanf(input, "%d", &depth) == 1 && depth >= 1) {
+                botDepth = depth;
+                break;
+            }
+        }
+    }
+
     while (getState() == PLAYING) {
         printf("\033[2J\033[H");
         printf("Turn: %s\n", wTurn ? "WHITE" : "BLACK");
@@ -453,19 +501,18 @@ int main() {
         showBoard();
 
         MoveList moves = getMoves();
-        printf("Move format:\n");
-        printf("  PLACE XY\n");
-        printf("  STEP XY XY\n");
-        printf("  JUMP XY XY TAKE XY\n");
-        printf("  X is A-F, Y is 1-5.\n");
         
         if (moves.count == 0) break;
 
         Move parsed{};
+        bool humanTurn = (p1Human && wTurn) || (p2Human && !wTurn);
 
-        char input[128] = {0};
-
-        if (wTurn) {
+        if (humanTurn) {
+            printf("Move format:\n");
+            printf("  PLACE XY\n");
+            printf("  STEP XY XY\n");
+            printf("  JUMP XY XY TAKE XY\n");
+            printf("  X is A-F, Y is 1-5.\n");
             printf("\nEnter move (or QUIT): ");
             if (!fgets(input, sizeof(input), stdin)) break;
             input[strcspn(input, "\n")] = '\0';
@@ -494,7 +541,7 @@ int main() {
                 continue;
             }
         } else {
-            parsed = bot(5);
+            parsed = bot(botDepth);
         }
 
         applyMove(parsed);
