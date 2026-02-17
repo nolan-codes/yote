@@ -24,8 +24,8 @@ Current State of things:
 - [x] Save/load board states
 - [x] Human interaction system & CLI
 - [x] Board state scoring function
-- [ ] Recursive evaluation bot
-- [ ] Human + bot CLI
+- [x] Recursive evaluation bot
+- [x] Human + bot CLI
 
 ---
 

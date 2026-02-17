@@ -179,6 +179,8 @@ GameState getState() {
         return WWIN;
     } else if (__builtin_popcount(wPieces) + wHand <= 3 && __builtin_popcount(bPieces) + bHand <= 3) {
         return DRAW;
+    } else if (countMoves() == 0) {
+        return DRAW;
     } else return PLAYING;
 }
 
@@ -263,27 +265,89 @@ BoardState saveBoard() {
     return {wTurn, wHand, bHand, wPieces, bPieces};
 }
 
-int scoreBoard() {
-    int mate = 1500;
-
-    switch (getState()) {
-        case PLAYING: {
-            int wScore = __builtin_popcount(wPieces) * 100 + wHand * 50;
-            int bScore = __builtin_popcount(bPieces) * 100 + bHand * 50;
-            return wScore - bScore;
-        }
-        case WWIN: return mate;
-        case BWIN: return -mate;
-        default: return 0;
-    }
-}
-
 void loadBoard(BoardState state) {
     wTurn = state.wTurn;
     wHand = state.wHand;
     bHand = state.bHand;
     wPieces = state.wPieces;
     bPieces = state.bPieces;
+}
+
+int scoreBoard() {
+    int wScore = __builtin_popcount(wPieces) * 100 + wHand * 50;
+    int bScore = __builtin_popcount(bPieces) * 100 + bHand * 50;
+    return wScore - bScore;
+}
+
+int eval(Move move, bool isWhite, int depth) {
+    const int mate = 1500;
+    BoardState state = saveBoard();
+
+    applyMove(move);
+    wTurn = !wTurn;
+
+    int result = 0;
+
+    switch (getState()) {
+        case WWIN:
+            result = isWhite ? mate : -mate;
+            break;
+        case BWIN:
+            result = isWhite ? -mate : mate;
+            break;
+        case DRAW:
+            result = 0;
+            break;
+        case PLAYING: {
+            if (depth == 0) {
+                int score = scoreBoard();
+                result = isWhite ? score : -score;
+                break;
+            }
+
+            MoveList moves = getMoves();
+
+            if (wTurn == isWhite) {
+                int best = -mate;
+                for (int i = 0; i < moves.count; ++i) {
+                    int score = eval(moves[i], isWhite, depth - 1);
+                    if (score > best) best = score;
+                }
+                result = best;
+            } else {
+                int best = mate;
+                for (int i = 0; i < moves.count; ++i) {
+                    int score = eval(moves[i], isWhite, depth - 1);
+                    if (score < best) best = score;
+                }
+                result = best;
+            }
+            break;
+        }
+    }
+
+    loadBoard(state);
+    return result;
+}
+
+Move bot(int depth) {
+    bool isWhite = wTurn;
+
+    MoveList moves = getMoves();
+
+    int bestWorstCase = -1500;
+    Move bestMove{};
+
+    for (int i=0; i<moves.count; ++i) {
+        int worstCase = eval(moves[i], isWhite, depth-1);
+
+        if (worstCase >= bestWorstCase) {
+            bestWorstCase = worstCase;
+            bestMove = moves[i];
+        }
+    }
+
+    return bestMove;
 }
 
 uint8_t coordToIndex(char* coord) {
@@ -397,33 +461,40 @@ int main() {
         
         if (moves.count == 0) break;
 
+        Move parsed{};
+
         char input[128] = {0};
-        printf("\nEnter move (or QUIT): ");
-        if (!fgets(input, sizeof(input), stdin)) break;
-        input[strcspn(input, "\n")] = '\0';
 
-        for (int i = 0; input[i]; i++) input[i] = toupper(input[i]);
+        if (wTurn) {
+            printf("\nEnter move (or QUIT): ");
+            if (!fgets(input, sizeof(input), stdin)) break;
+            input[strcspn(input, "\n")] = '\0';
 
-        if (strcmp(input, "QUIT") == 0) break;
+            for (int i = 0; input[i]; i++) input[i] = toupper(input[i]);
 
-        Move parsed = stringToMove(input);
+            if (strcmp(input, "QUIT") == 0) break;
 
-        bool found = false;
-        for (int i = 0; i < moves.count; ++i) {
-            Move m = moves[i];
-            if (m.type == parsed.type && 
-                m.start == parsed.start &&
-                m.end == parsed.end &&
-                m.other == parsed.other) {
-                found = true;
-                break;
+            parsed = stringToMove(input);
+
+            bool found = false;
+            for (int i = 0; i < moves.count; ++i) {
+                Move m = moves[i];
+                if (m.type == parsed.type && 
+                    m.start == parsed.start &&
+                    m.end == parsed.end &&
+                    m.other == parsed.other) {
+                    found = true;
+                    break;
+                }
             }
-        }
 
-        if (!found) {
-            printf("Illegal move, press enter.");
-            fgets(input, sizeof(input), stdin);
-            continue;
+            if (!found) {
+                printf("Illegal move, press enter.");
+                fgets(input, sizeof(input), stdin);
+                continue;
+            }
+        } else {
+            parsed = bot(5);
         }
 
         applyMove(parsed);
@@ -442,6 +513,8 @@ int main() {
         case BWIN:
             printf("Black wins!");
             break;
+        default:
+            printf("Something happened.");
     }
 
     showBoard();
@@ -451,3 +524,4 @@ int main() {
 
 //TODO
 //PROVABLY LOWER MOVELIST UPPER BOUND
+//OPTIMIZE BOT EVAL A TON (MAYBE ALPHA-BETA?)
