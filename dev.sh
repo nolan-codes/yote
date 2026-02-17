@@ -1,2 +1,2 @@
 #!/bin/sh
-ls *.cpp | entr ./run.sh
+ls *.cpp | entr sh -c 'clear && make debug && ./yote'
